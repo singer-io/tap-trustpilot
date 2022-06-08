@@ -40,3 +40,6 @@ workflows:
             branches:
               only:
                 - master
+    jobs:
+      - build:
+          context: circleci-user
