@@ -12,7 +12,7 @@ jobs:
           name: 'Setup virtual env'
           command: |
             python3 -mvenv /usr/local/share/virtualenvs/tap-trustpilot
-            source /usr/local/share/virtualenvs/tap-trustpilot>/bin/activate
+            source /usr/local/share/virtualenvs/tap-trustpilot/bin/activate
             pip install -U pip setuptools
             pip install .[dev]
       - run:
