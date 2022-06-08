@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-import os
-import json
 import singer
 from singer import utils
-from singer.catalog import Catalog, CatalogEntry, Schema
-from . import streams as streams_
-from .context import Context
-from . import schemas
+from singer.catalog import Catalog
+from tap_trustpilot import streams as streams_
+from tap_trustpilot.context import Context
+from tap_trustpilot import schemas
+from tap_trustpilot.discover import discover
 
 REQUIRED_CONFIG_KEYS = [
     "access_key",
@@ -17,26 +16,6 @@ REQUIRED_CONFIG_KEYS = [
 ]
 
 LOGGER = singer.get_logger()
-
-
-def check_credentials_are_authorized(ctx):
-    ctx.client.auth(ctx.config)
-
-
-def discover(ctx):
-    check_credentials_are_authorized(ctx)
-    catalog = Catalog([])
-    for tap_stream_id in schemas.stream_ids:
-        schema = Schema.from_dict(schemas.load_schema(tap_stream_id),
-                                  inclusion="automatic")
-        catalog.streams.append(CatalogEntry(
-            stream=tap_stream_id,
-            tap_stream_id=tap_stream_id,
-            key_properties=schemas.PK_FIELDS[tap_stream_id],
-            schema=schema,
-        ))
-    return catalog
-
 
 def output_schema(stream):
     schema = schemas.load_schema(stream.tap_stream_id)
@@ -71,8 +50,8 @@ def main():
         discover(ctx).dump()
         print()
     else:
-        ctx.catalog = Catalog.from_dict(args.properties) \
-            if args.properties else discover(ctx)
+        ctx.catalog = Catalog.from_dict(args.catalog.to_dict()) \
+            if args.catalog else discover(ctx)
         sync(ctx)
 
 if __name__ == "__main__":

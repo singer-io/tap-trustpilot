@@ -10,9 +10,17 @@ setup(
     classifiers=["Programming Language :: Python :: 3 :: Only"],
     py_modules=["tap_trustpilot"],
     install_requires=[
-        "singer-python>=5.0.12",
+        "singer-python",
         "requests",
     ],
+    # requires following addition packages for code check quality
+    extras_require={
+        'dev': [
+            'pylint',
+            'ipdb',
+            'nose'
+        ]
+    },
     entry_points="""
     [console_scripts]
     tap-trustpilot=tap_trustpilot:main
