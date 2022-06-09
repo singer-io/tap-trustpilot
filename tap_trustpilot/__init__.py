@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 import singer
 from singer import utils
-from singer.catalog import Catalog, CatalogEntry, Schema
+from singer.catalog import Catalog
 from tap_trustpilot import streams as streams_
 from tap_trustpilot.context import Context
 from tap_trustpilot import schemas
 from tap_trustpilot.discover import discover
-
 
 REQUIRED_CONFIG_KEYS = [
     "access_key",
