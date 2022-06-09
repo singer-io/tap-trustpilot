@@ -5,6 +5,9 @@ def check_credentials_are_authorized(ctx):
     ctx.client.auth(ctx.config)
 
 def discover(ctx):
+    """
+    Constructs a singer Catalog object based on the schemas and metadata.
+    """
     check_credentials_are_authorized(ctx)
     discover_schemas, field_metadata = schemas.get_schemas()
     streams = []
