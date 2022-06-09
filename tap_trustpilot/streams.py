@@ -91,7 +91,7 @@ class Paginated(Stream):
         return {
             "page": page,
             "perPage": PAGE_SIZE,
-            "orderBy": "createdat.asc"
+            "orderBy": "createdat.desc"
         }
 
     def _sync(self, ctx):
