@@ -58,6 +58,7 @@ Run the Tap in Sync Mode (with catalog) and [write out to state file](https://gi
 For Sync mode:
 ```bash
 > tap-trustpilot --config config.json --catalog catalog.json > state.json
+```
 
 ---
 
