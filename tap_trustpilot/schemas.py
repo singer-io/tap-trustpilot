@@ -3,7 +3,7 @@ import os
 import json
 import singer
 from singer import utils,metadata
-from tap_trustpilot.streams import STREAMS, PK_FIELDS, IDS
+from tap_trustpilot.streams import PK_FIELDS, all_streams
 
 
 def get_abs_path(path):
@@ -24,11 +24,11 @@ def get_schemas():
     schemas = {}
     field_metadata = {}
 
-    for stream_name, stream_metadata in STREAMS.items():
-        path = get_abs_path(f'schemas/{stream_name}.json')
+    for stream_metadata in all_streams:
+        path = get_abs_path(f'schemas/{stream_metadata.stream_name}.json')
         with open(path, encoding='utf-8') as file:
             schema = json.load(file)
-        schemas[stream_name] = schema
+        schemas[stream_metadata.stream_name] = schema
 
         mdata = metadata.get_standard_metadata(
             schema=schema,
@@ -36,7 +36,6 @@ def get_schemas():
             replication_method=stream_metadata.replication_method,
             valid_replication_keys=stream_metadata.replication_keys
         )
-        field_metadata[stream_name] = mdata
-        field_metadata["stream"] = STREAMS
+        field_metadata[stream_metadata.stream_name] = mdata
 
     return schemas, field_metadata

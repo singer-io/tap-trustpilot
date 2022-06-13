@@ -1,7 +1,6 @@
 import json
 
 import singer
-# from tap_trustpilot.schemas import IDS
 from tap_trustpilot import transform
 
 LOGGER = singer.get_logger()
@@ -61,6 +60,7 @@ class Stream(object):
 class BusinessUnits(Stream):
 
     # tap_stream_id = "business_units"
+    stream_name = "business_units"
     key_properties = ['id']
     replication_keys  = None
     replication_method = "FULL_TABLE"
@@ -120,6 +120,7 @@ class Paginated(Stream):
 class Reviews(Paginated):
 
     key_properties = ["business_unit_id", "id"]
+    stream_name = "reviews"
     replication_keys = None
     replication_method = "FULL_TABLE"
     params = {}
@@ -140,6 +141,7 @@ class Reviews(Paginated):
 class Consumers(Stream):
 
     key_properties = ['id']
+    stream_name = "consumers"
     replication_keys = None
     replication_method = "FULL_TABLE"
     params = {}
@@ -174,12 +176,4 @@ all_streams = [
     Reviews(IDS.REVIEWS, '/business-units/:business_unit_id/reviews', collection_key='reviews'),
     Consumers(IDS.CONSUMERS, '/consumers/profile/bulk')
 ]
-all_stream_ids = [s.tap_stream_id for s in all_streams]
-
-STREAMS = {
-    'business_units': BusinessUnits(IDS.BUSINESS_UNITS, "/business-units/:business_unit_id/profileinfo"),
-    'reviews': Reviews(IDS.REVIEWS, '/business-units/:business_unit_id/reviews', collection_key='reviews'),
-    'consumers': Consumers(IDS.CONSUMERS, '/consumers/{consumerId}/profile')
-}
-    
-
+all_stream_ids = [s.tap_stream_id for s in all_streams] 
