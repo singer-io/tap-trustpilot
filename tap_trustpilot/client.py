@@ -23,7 +23,6 @@ class Client(object):
         self.user_agent = config.get("user_agent")
         self.session = requests.Session()
 
-        self.business_unit_id = config['business_unit_id']
         self.access_key = config['access_key']
         self._token = None
 
@@ -66,12 +65,13 @@ class Client(object):
 
         return self.session.send(request.prepare())
 
-    def url(self, path):
+    def url(self, path, business_unit_id=''):
+        # parameterizing business unit ID to support multiple business unit IDs TDL-19427
         joined = _join(BASE_URL, path)
-        return joined.replace(':business_unit_id', self.business_unit_id)
+        return joined.replace(':business_unit_id', business_unit_id)
 
-    def create_get_request(self, path, **kwargs):
-        return requests.Request(method="GET", url=self.url(path), **kwargs)
+    def create_get_request(self, path, business_unit_id, **kwargs):
+        return requests.Request(method="GET", url=self.url(path, business_unit_id), **kwargs)
 
     def create_post_request(self, path, payload, **kwargs):
         return requests.Request(method="POST", url=self.url(path), data=payload, **kwargs)

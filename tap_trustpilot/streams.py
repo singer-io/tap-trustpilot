@@ -65,13 +65,15 @@ class BusinessUnits(Stream):
     replication_keys  = None
     replication_method = "FULL_TABLE"
     params = {}
-    def raw_fetch(self, ctx):
-        return ctx.client.GET({"path": self.path}, self.tap_stream_id)
+
+    def raw_fetch(self, ctx, business_unit_id):
+        # parameterizing business unit ID to support multiple business unit IDs TDL-19427
+        return ctx.client.GET({"path": self.path, "business_unit_id": business_unit_id}, self.tap_stream_id)
 
     def fetch_into_cache(self, ctx):
         business_unit_id = ctx.config['business_unit_id']
 
-        resp = self.raw_fetch(ctx)
+        resp = self.raw_fetch(ctx, business_unit_id)
         resp['id'] = business_unit_id
 
         business_units = self.transform(ctx, [resp])
@@ -95,13 +97,13 @@ class Paginated(Stream):
         }
 
     def _sync(self, ctx):
-        business_unit_id = ctx.cache['business_unit']['id']
+        business_unit_id = ctx.config['business_unit_id']
 
         page = 1
         while True:
             LOGGER.info("Fetching page {} for {}".format(page, self.tap_stream_id))
             params = self.get_params(page)
-            resp = ctx.client.GET({"path": self.path, "params": params}, self.tap_stream_id)
+            resp = ctx.client.GET({"path": self.path, "params": params, "business_unit_id":business_unit_id}, self.tap_stream_id)
             raw_records = self.format_response(resp)
 
             for raw_record in raw_records:
@@ -147,9 +149,10 @@ class Consumers(Stream):
     params = {}
 
     def sync(self, ctx):
-        business_unit_id = ctx.cache['business_unit']['id']
+        business_unit_id = ctx.config['business_unit_id']
 
         total = len(ctx.cache.get('consumer_ids',[]))
+        LOGGER.info(f"Total Consumer profiles to be extracted {str(total)}")
 
         # chunk list of consumer IDs to smaller lists of size 1000
         consumer_ids = list(ctx.cache.get('consumer_ids',[]))
@@ -157,7 +160,7 @@ class Consumers(Stream):
                                                                                       CONSUMER_CHUNK_SIZE)]
 
         for i, consumer_id_list in enumerate(chunked_consumer_ids):
-            LOGGER.info("Fetching consumer page {} of {}".format(i + 1, len(chunked_consumer_ids)))
+            LOGGER.info("Fetching consumer profiles page {} of {}".format(i + 1, len(chunked_consumer_ids)))
             resp = ctx.client.POST({"path": self.path, "payload": json.dumps({"consumerIds": consumer_id_list})},
                                    self.tap_stream_id)
 
