@@ -34,9 +34,6 @@ Create a `config.json` file that looks like this:
 ```
 {
     "access_key": "...",
-    "client_secret": "...",
-    "username": "user@email.com",
-    "password": "hunter2",
     "business_unit_ids": "123abc, 345fgh, tyuie456"
 }
 ```

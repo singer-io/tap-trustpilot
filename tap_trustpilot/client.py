@@ -2,7 +2,6 @@ import requests
 from singer import metrics
 import singer
 import backoff
-import base64
 
 LOGGER = singer.get_logger()
 
@@ -30,40 +29,31 @@ class Client(object):
         self.access_key = config['access_key']
         self._token = None
 
-    def get_token(self, config):
-        creds = "{}:{}".format(config['access_key'], config['client_secret']).encode()
-        encoded_creds = base64.b64encode(creds)
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': encoded_creds
-        }
-
-        data = {
-            'grant_type': 'password',
-            'username': config['username'],
-            'password': config['password']
-        }
-
-        resp = requests.post(url=AUTH_URL, headers=headers, data=data)
-        resp.raise_for_status()
-        return resp.json()
-
-    @property
-    def token(self):
-        if not self._token:
-            raise RuntimeError("Client is not yet authorized")
-        return self._token
 
     def auth(self, config):
-        resp = self.get_token(config)
-        token = resp['access_token']
-        self._token = token
+        '''
+            Function auth confirms whether the access_key provided in config.json is valid or not
+        '''
+
+        # Using this url to validate the API key
+        BU_ALL_URL = "https://api.trustpilot.com/v1/business-units/all"
+
+        headers = {
+            'Content-Type': 'application/json',
+            'apikey': config["access_key"]
+        }
+
+        resp = requests.get(url=BU_ALL_URL, headers=headers)
+        if resp.status_code == 200:
+            return "Valid API Key"
+        else:
+            raise RuntimeError("API key is not valid")
 
     def prepare_and_send(self, request):
         if self.user_agent:
             request.headers["User-Agent"] = self.user_agent
 
-        request.headers['Authorization'] = 'Bearer {}'.format(self._token)
+        # request.headers['Authorization'] = 'Bearer {}'.format(self._token)
         request.headers['apikey'] = self.access_key
         request.headers['Content-Type'] = 'application/json'
 

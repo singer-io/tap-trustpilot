@@ -9,9 +9,6 @@ from tap_trustpilot.discover import discover
 
 REQUIRED_CONFIG_KEYS = [
     "access_key",
-    "client_secret",
-    "username",
-    "password",
     "business_unit_ids"
 ]
 

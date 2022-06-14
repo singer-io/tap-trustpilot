@@ -24,6 +24,7 @@ def get_schemas():
     schemas = {}
     field_metadata = {}
 
+    # Iterate over list pf objects of different streams
     for stream_metadata in all_streams:
         path = get_abs_path(f'schemas/{stream_metadata.stream_name}.json')
         with open(path, encoding='utf-8') as file:
