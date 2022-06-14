@@ -29,25 +29,14 @@ class Client(object):
         self.access_key = config['access_key']
         self._token = None
 
+    def validate_access_key(self):
+        """
+            Function validate_access_key confirms whether the access_key provided in config.json is valid or not
+            hits /business-units/all endpoint to validate access_key
+            business_unit_id and tap_stream_id are being sent as empty strings since these are not required
+        """
 
-    def auth(self, config):
-        '''
-            Function auth confirms whether the access_key provided in config.json is valid or not
-        '''
-
-        # Using this url to validate the API key
-        BU_ALL_URL = "https://api.trustpilot.com/v1/business-units/all"
-
-        headers = {
-            'Content-Type': 'application/json',
-            'apikey': config["access_key"]
-        }
-
-        resp = requests.get(url=BU_ALL_URL, headers=headers)
-        if resp.status_code == 200:
-            return "Valid API Key"
-        else:
-            raise RuntimeError("API key is not valid")
+        self.GET({'path': '/business-units/all', 'business_unit_id': ''}, '')
 
     def prepare_and_send(self, request):
         if self.user_agent:
@@ -102,6 +91,7 @@ class Client(object):
         """
         if resp_object.status_code == 401:
             raise UnauthorisedException("Unauthorised...Invalid ApiKey")
+        resp_object.raise_for_status()
         return resp_object.json()
 
     def GET(self, request_kwargs, *args, **kwargs):

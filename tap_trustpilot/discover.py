@@ -2,7 +2,10 @@ from singer.catalog import Catalog, CatalogEntry, Schema
 from tap_trustpilot import schemas
 
 def check_credentials_are_authorized(ctx):
-    ctx.client.auth(ctx.config)
+    """
+    validates access_key
+    """
+    ctx.client.validate_access_key()
 
 def discover(ctx):
     """
