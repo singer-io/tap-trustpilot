@@ -70,21 +70,24 @@ class BusinessUnits(Stream):
         # parameterizing business unit ID to support multiple business unit IDs TDL-19427
         return ctx.client.GET({"path": self.path, "business_unit_id": business_unit_id}, self.tap_stream_id)
 
-    def fetch_into_cache(self, ctx):
+    def sync(self, ctx):
+        """
+        Extracts business unit profile for a given business_unit_id
+        Logs a warning message if business_unit_id is invalid
+        """
         business_unit_id = ctx.config['business_unit_id']
 
         resp = self.raw_fetch(ctx, business_unit_id)
-        resp['id'] = business_unit_id
+        if resp:
+            resp['id'] = business_unit_id
 
-        business_units = self.transform(ctx, [resp])
+            business_units = self.transform(ctx, [resp])
 
-        if len(business_units) == 0:
-            raise RuntimeError("Business Unit {} was not found!".format(business_unit_id))
+            ctx.cache["business_unit"] = business_units[0]
 
-        ctx.cache["business_unit"] = business_units[0]
-
-    def sync(self, ctx):
-        self.write_records([ctx.cache["business_unit"]])
+            self.write_records([ctx.cache["business_unit"]])
+        else:
+            LOGGER.warning("Business Unit {} was not found!".format(business_unit_id))
 
 
 class Paginated(Stream):
@@ -97,6 +100,10 @@ class Paginated(Stream):
         }
 
     def _sync(self, ctx):
+        """
+        Extracts data in paginated streams
+        default page size is 100 and cannot exceed more than 100 due to trust pilot API restrictions
+        """
         business_unit_id = ctx.config['business_unit_id']
 
         page = 1
@@ -135,6 +142,10 @@ class Reviews(Paginated):
                 ctx.cache['consumer_ids'].add(consumer_id)
 
     def sync(self, ctx):
+        """
+        Extracts data for consumer reviews in paginated manner
+        Caches consumer id for each review
+        """
         ctx.cache['consumer_ids'] = set()
         for batch in self._sync(ctx):
             self.add_consumers_to_cache(ctx, batch)
@@ -149,18 +160,22 @@ class Consumers(Stream):
     params = {}
 
     def sync(self, ctx):
+        """
+        extracts consumer profiles using bulk endpoint.
+        Chunks the Consumer IDs set to smaller list of size 1000
+        """
         business_unit_id = ctx.config['business_unit_id']
 
         total = len(ctx.cache.get('consumer_ids',[]))
-        LOGGER.info(f"Total Consumer profiles to be extracted {str(total)}")
+        LOGGER.info("Total Consumer profiles to be extracted {}".format(total))
 
         # chunk list of consumer IDs to smaller lists of size 1000
         consumer_ids = list(ctx.cache.get('consumer_ids',[]))
         chunked_consumer_ids = [consumer_ids[i: i+CONSUMER_CHUNK_SIZE] for i in range(0, len(consumer_ids),
                                                                                       CONSUMER_CHUNK_SIZE)]
 
-        for i, consumer_id_list in enumerate(chunked_consumer_ids):
-            LOGGER.info("Fetching consumer profiles page {} of {}".format(i + 1, len(chunked_consumer_ids)))
+        for idx, consumer_id_list in enumerate(chunked_consumer_ids):
+            LOGGER.info("Fetching consumer profiles page {} of {}".format(idx + 1, len(chunked_consumer_ids)))
             resp = ctx.client.POST({"path": self.path, "payload": json.dumps({"consumerIds": consumer_id_list})},
                                    self.tap_stream_id)
 

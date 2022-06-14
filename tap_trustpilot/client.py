@@ -14,6 +14,10 @@ class RateLimitException(Exception):
     pass
 
 
+class UnauthorisedException(Exception):
+    pass
+
+
 def _join(a, b):
     return a.rstrip("/") + "/" + b.lstrip("/")
 
@@ -84,13 +88,31 @@ class Client(object):
             timer.tags[metrics.Tag.http_status_code] = response.status_code
         if response.status_code in [429, 503]:
             raise RateLimitException()
-        # below exception should handle Pagination limit exceeded error if page value is more than 1000
-        # depends on access level of access_token being used in config.json file
-        if response.status_code == 400 and response.json().get('details') == "Pagination limit exceeded.":
+        return self.check_for_http_error(response)
+
+    @staticmethod
+    def check_for_http_error(resp_object):
+        """
+        TrustPilot API has 100k record limit for reviews stream
+        below condition should handle Pagination limit exceeded error if page value is more than 1000
+        sends an empty response
+        """
+        if resp_object.status_code == 400 and resp_object.json().get('details') == "Pagination limit exceeded.":
             LOGGER.warning("400 Bad Request, Pagination limit exceeded.")
             return []
-        response.raise_for_status()
-        return response.json()
+        """
+        send empty response when given business_unit id is invalid or malformed
+        """
+        if resp_object.status_code == 400 and (resp_object.json().get('message') ==
+                                               "The given business unit id was malformed" or
+                                               resp_object.json().get('details') == 'Error: valid unitId is required'):
+            return []
+        """
+        following condition handles unauthorised error..validates apiKey and throws exception if it is not valid
+        """
+        if resp_object.status_code == 401:
+            raise UnauthorisedException("Unauthorised...Invalid ApiKey")
+        return resp_object.json()
 
     def GET(self, request_kwargs, *args, **kwargs):
         req = self.create_get_request(**request_kwargs)
