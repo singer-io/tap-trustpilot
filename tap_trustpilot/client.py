@@ -26,13 +26,13 @@ class Client(object):
         self.user_agent = config.get("user_agent")
         self.session = requests.Session()
 
-        self.access_key = config['api_key']
+        self.api_key = config['api_key']
         self._token = None
 
-    def validate_access_key(self):
+    def validate_api_key(self):
         """
-            Function validate_access_key confirms whether the access_key provided in config.json is valid or not
-            hits /business-units/all endpoint to validate access_key
+            Function validate_api_key confirms whether the api_key provided in config.json is valid or not
+            hits /business-units/all endpoint to validate api_key
             business_unit_id and tap_stream_id are being sent as empty strings since these are not required
         """
 
@@ -43,7 +43,7 @@ class Client(object):
             request.headers["User-Agent"] = self.user_agent
 
         # request.headers['Authorization'] = 'Bearer {}'.format(self._token)
-        request.headers['apikey'] = self.access_key
+        request.headers['apikey'] = self.api_key
         request.headers['Content-Type'] = 'application/json'
 
         return self.session.send(request.prepare())

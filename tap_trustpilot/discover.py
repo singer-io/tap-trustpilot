@@ -5,7 +5,7 @@ def check_credentials_are_authorized(ctx):
     """
     validates access_key
     """
-    ctx.client.validate_access_key()
+    ctx.client.validate_api_key()
 
 def discover(ctx):
     """
