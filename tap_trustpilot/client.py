@@ -26,7 +26,7 @@ class Client(object):
         self.user_agent = config.get("user_agent")
         self.session = requests.Session()
 
-        self.access_key = config['access_key']
+        self.access_key = config['api_key']
         self._token = None
 
     def validate_access_key(self):

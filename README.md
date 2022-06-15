@@ -33,7 +33,7 @@ Create a `config.json` file that looks like this:
 
 ```
 {
-    "access_key": "...",
+    "api_key": "...",
     "business_unit_ids": "123abc, 345fgh, tyuie456"
 }
 ```

@@ -8,7 +8,7 @@ from tap_trustpilot import schemas
 from tap_trustpilot.discover import discover
 
 REQUIRED_CONFIG_KEYS = [
-    "access_key",
+    "api_key",
     "business_unit_ids"
 ]
 
