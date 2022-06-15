@@ -1,7 +1,6 @@
 import json
 
 import singer
-# from tap_trustpilot.schemas import IDS
 from tap_trustpilot import transform
 
 LOGGER = singer.get_logger()
@@ -61,28 +60,34 @@ class Stream(object):
 class BusinessUnits(Stream):
 
     # tap_stream_id = "business_units"
+    stream_name = "business_units"
     key_properties = ['id']
     replication_keys  = None
     replication_method = "FULL_TABLE"
     params = {}
-    def raw_fetch(self, ctx):
-        return ctx.client.GET({"path": self.path}, self.tap_stream_id)
 
-    def fetch_into_cache(self, ctx):
-        business_unit_id = ctx.config['business_unit_id']
-
-        resp = self.raw_fetch(ctx)
-        resp['id'] = business_unit_id
-
-        business_units = self.transform(ctx, [resp])
-
-        if len(business_units) == 0:
-            raise RuntimeError("Business Unit {} was not found!".format(business_unit_id))
-
-        ctx.cache["business_unit"] = business_units[0]
+    def raw_fetch(self, ctx, business_unit_id):
+        # parameterizing business unit ID to support multiple business unit IDs TDL-19427
+        return ctx.client.GET({"path": self.path, "business_unit_id": business_unit_id}, self.tap_stream_id)
 
     def sync(self, ctx):
-        self.write_records([ctx.cache["business_unit"]])
+        """
+        Extracts business unit profile for a given business_unit_id
+        Logs a warning message if business_unit_id is invalid
+        """
+        business_unit_id = ctx.config['business_unit_id']
+
+        resp = self.raw_fetch(ctx, business_unit_id)
+        if resp:
+            resp['id'] = business_unit_id
+
+            business_units = self.transform(ctx, [resp])
+
+            ctx.cache["business_unit"] = business_units[0]
+
+            self.write_records([ctx.cache["business_unit"]])
+        else:
+            LOGGER.warning("Business Unit {} was not found!".format(business_unit_id))
 
 
 class Paginated(Stream):
@@ -95,13 +100,17 @@ class Paginated(Stream):
         }
 
     def _sync(self, ctx):
-        business_unit_id = ctx.cache['business_unit']['id']
+        """
+        Extracts data in paginated streams
+        default page size is 100 and cannot exceed more than 100 due to trust pilot API restrictions
+        """
+        business_unit_id = ctx.config['business_unit_id']
 
         page = 1
         while True:
             LOGGER.info("Fetching page {} for {}".format(page, self.tap_stream_id))
             params = self.get_params(page)
-            resp = ctx.client.GET({"path": self.path, "params": params}, self.tap_stream_id)
+            resp = ctx.client.GET({"path": self.path, "params": params, "business_unit_id":business_unit_id}, self.tap_stream_id)
             raw_records = self.format_response(resp)
 
             for raw_record in raw_records:
@@ -120,6 +129,7 @@ class Paginated(Stream):
 class Reviews(Paginated):
 
     key_properties = ["business_unit_id", "id"]
+    stream_name = "reviews"
     replication_keys = None
     replication_method = "FULL_TABLE"
     params = {}
@@ -132,6 +142,10 @@ class Reviews(Paginated):
                 ctx.cache['consumer_ids'].add(consumer_id)
 
     def sync(self, ctx):
+        """
+        Extracts data for consumer reviews in paginated manner
+        Caches consumer id for each review
+        """
         ctx.cache['consumer_ids'] = set()
         for batch in self._sync(ctx):
             self.add_consumers_to_cache(ctx, batch)
@@ -140,22 +154,28 @@ class Reviews(Paginated):
 class Consumers(Stream):
 
     key_properties = ['id']
+    stream_name = "consumers"
     replication_keys = None
     replication_method = "FULL_TABLE"
     params = {}
 
     def sync(self, ctx):
-        business_unit_id = ctx.cache['business_unit']['id']
+        """
+        extracts consumer profiles using bulk endpoint.
+        Chunks the Consumer IDs set to smaller list of size 1000
+        """
+        business_unit_id = ctx.config['business_unit_id']
 
         total = len(ctx.cache.get('consumer_ids',[]))
+        LOGGER.info("Total Consumer profiles to be extracted {}".format(total))
 
         # chunk list of consumer IDs to smaller lists of size 1000
         consumer_ids = list(ctx.cache.get('consumer_ids',[]))
         chunked_consumer_ids = [consumer_ids[i: i+CONSUMER_CHUNK_SIZE] for i in range(0, len(consumer_ids),
                                                                                       CONSUMER_CHUNK_SIZE)]
 
-        for i, consumer_id_list in enumerate(chunked_consumer_ids):
-            LOGGER.info("Fetching consumer page {} of {}".format(i + 1, len(chunked_consumer_ids)))
+        for idx, consumer_id_list in enumerate(chunked_consumer_ids):
+            LOGGER.info("Fetching consumer profiles page {} of {}".format(idx + 1, len(chunked_consumer_ids)))
             resp = ctx.client.POST({"path": self.path, "payload": json.dumps({"consumerIds": consumer_id_list})},
                                    self.tap_stream_id)
 
@@ -174,12 +194,4 @@ all_streams = [
     Reviews(IDS.REVIEWS, '/business-units/:business_unit_id/reviews', collection_key='reviews'),
     Consumers(IDS.CONSUMERS, '/consumers/profile/bulk')
 ]
-all_stream_ids = [s.tap_stream_id for s in all_streams]
-
-STREAMS = {
-    'business_units': BusinessUnits(IDS.BUSINESS_UNITS, "/business-units/:business_unit_id/profileinfo"),
-    'reviews': Reviews(IDS.REVIEWS, '/business-units/:business_unit_id/reviews', collection_key='reviews'),
-    'consumers': Consumers(IDS.CONSUMERS, '/consumers/{consumerId}/profile')
-}
-    
-
+all_stream_ids = [s.tap_stream_id for s in all_streams] 

@@ -2,7 +2,6 @@ import requests
 from singer import metrics
 import singer
 import backoff
-import base64
 
 LOGGER = singer.get_logger()
 
@@ -11,6 +10,10 @@ AUTH_URL = "{}/oauth/oauth-business-users-for-applications/accesstoken".format(B
 
 
 class RateLimitException(Exception):
+    pass
+
+
+class UnauthorisedException(Exception):
     pass
 
 
@@ -23,55 +26,35 @@ class Client(object):
         self.user_agent = config.get("user_agent")
         self.session = requests.Session()
 
-        self.business_unit_id = config['business_unit_id']
-        self.access_key = config['access_key']
+        self.api_key = config['api_key']
         self._token = None
 
-    def get_token(self, config):
-        creds = "{}:{}".format(config['access_key'], config['client_secret']).encode()
-        encoded_creds = base64.b64encode(creds)
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': encoded_creds
-        }
+    def validate_api_key(self):
+        """
+            Function validate_api_key confirms whether the api_key provided in config.json is valid or not
+            hits /business-units/all endpoint to validate api_key
+            business_unit_id and tap_stream_id are being sent as empty strings since these are not required
+        """
 
-        data = {
-            'grant_type': 'password',
-            'username': config['username'],
-            'password': config['password']
-        }
-
-        resp = requests.post(url=AUTH_URL, headers=headers, data=data)
-        resp.raise_for_status()
-        return resp.json()
-
-    @property
-    def token(self):
-        if not self._token:
-            raise RuntimeError("Client is not yet authorized")
-        return self._token
-
-    def auth(self, config):
-        resp = self.get_token(config)
-        token = resp['access_token']
-        self._token = token
+        self.GET({'path': '/business-units/all', 'business_unit_id': ''}, '')
 
     def prepare_and_send(self, request):
         if self.user_agent:
             request.headers["User-Agent"] = self.user_agent
 
-        request.headers['Authorization'] = 'Bearer {}'.format(self._token)
-        request.headers['apikey'] = self.access_key
+        # request.headers['Authorization'] = 'Bearer {}'.format(self._token)
+        request.headers['apikey'] = self.api_key
         request.headers['Content-Type'] = 'application/json'
 
         return self.session.send(request.prepare())
 
-    def url(self, path):
+    def url(self, path, business_unit_id=''):
+        # parameterizing business unit ID to support multiple business unit IDs TDL-19427
         joined = _join(BASE_URL, path)
-        return joined.replace(':business_unit_id', self.business_unit_id)
+        return joined.replace(':business_unit_id', business_unit_id)
 
-    def create_get_request(self, path, **kwargs):
-        return requests.Request(method="GET", url=self.url(path), **kwargs)
+    def create_get_request(self, path, business_unit_id, **kwargs):
+        return requests.Request(method="GET", url=self.url(path, business_unit_id), **kwargs)
 
     def create_post_request(self, path, payload, **kwargs):
         return requests.Request(method="POST", url=self.url(path), data=payload, **kwargs)
@@ -84,13 +67,32 @@ class Client(object):
             timer.tags[metrics.Tag.http_status_code] = response.status_code
         if response.status_code in [429, 503]:
             raise RateLimitException()
-        # below exception should handle Pagination limit exceeded error if page value is more than 1000
-        # depends on access level of access_token being used in config.json file
-        if response.status_code == 400 and response.json().get('details') == "Pagination limit exceeded.":
+        return self.check_for_http_error(response)
+
+    @staticmethod
+    def check_for_http_error(resp_object):
+        """
+        TrustPilot API has 100k record limit for reviews stream
+        below condition should handle Pagination limit exceeded error if page value is more than 1000
+        sends an empty response
+        """
+        if resp_object.status_code == 400 and resp_object.json().get('details') == "Pagination limit exceeded.":
             LOGGER.warning("400 Bad Request, Pagination limit exceeded.")
             return []
-        response.raise_for_status()
-        return response.json()
+        """
+        send empty response when given business_unit id is invalid or malformed
+        """
+        if resp_object.status_code == 400 and (resp_object.json().get('message') ==
+                                               "The given business unit id was malformed" or
+                                               resp_object.json().get('details') == 'Error: valid unitId is required'):
+            return []
+        """
+        following condition handles unauthorised error..validates apiKey and throws exception if it is not valid
+        """
+        if resp_object.status_code == 401:
+            raise UnauthorisedException("Unauthorised...Invalid ApiKey")
+        resp_object.raise_for_status()
+        return resp_object.json()
 
     def GET(self, request_kwargs, *args, **kwargs):
         req = self.create_get_request(**request_kwargs)

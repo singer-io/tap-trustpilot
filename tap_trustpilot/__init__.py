@@ -8,11 +8,8 @@ from tap_trustpilot import schemas
 from tap_trustpilot.discover import discover
 
 REQUIRED_CONFIG_KEYS = [
-    "access_key",
-    "client_secret",
-    "username",
-    "password",
-    "business_unit_id"
+    "api_key",
+    "business_unit_ids"
 ]
 
 LOGGER = singer.get_logger()
@@ -24,23 +21,31 @@ def output_schema(stream):
 
 
 def sync(ctx):
-    streams_.business_units.fetch_into_cache(ctx)
+    bu_ids = ctx.config.get('business_unit_ids').replace(" ", "").split(",")
+    # iterating through each business unit id to extract data
+    for bu_id in bu_ids:
+        LOGGER.info(f"Extracting data for business_unit_id {bu_id}")
+        ctx.config['business_unit_id'] = bu_id
 
-    currently_syncing = ctx.state.get("currently_syncing")
-    start_idx = streams_.all_stream_ids.index(currently_syncing) \
-        if currently_syncing else 0
-    stream_ids_to_sync = [cs.tap_stream_id for cs in ctx.catalog.streams
-                          if cs.is_selected()]
-    streams = [s for s in streams_.all_streams[start_idx:]
-               if s.tap_stream_id in stream_ids_to_sync]
+        # fetch state value for last sync if value is None do
+        # extraction for all the streams
+        currently_syncing = ctx.state.get("currently_syncing")
+        start_idx = streams_.all_stream_ids.index(currently_syncing) \
+            if currently_syncing else 0
+        stream_ids_to_sync = [cs.tap_stream_id for cs in ctx.catalog.streams
+                              if cs.is_selected()]
+        streams = [s for s in streams_.all_streams[start_idx:]
+                   if s.tap_stream_id in stream_ids_to_sync]
 
-    for stream in streams:
-        ctx.state["currently_syncing"] = stream.tap_stream_id
-        output_schema(stream)
+        for stream in streams:
+            # store state value for current stream
+            ctx.state["currently_syncing"] = stream.tap_stream_id
+            output_schema(stream)
+            ctx.write_state()
+            stream.sync(ctx)
+        # make the state value as None after all streams have passed
+        ctx.state["currently_syncing"] = None
         ctx.write_state()
-        stream.sync(ctx)
-    ctx.state["currently_syncing"] = None
-    ctx.write_state()
 
 @utils.handle_top_exception(LOGGER)
 def main():
